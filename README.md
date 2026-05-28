@@ -1,5 +1,9 @@
 # Jellyfin.Plugin.RetroStretch
 
+[![Build](https://img.shields.io/github/actions/workflow/status/oscars-couch/Jellyfin.Plugin.RetroStretch/release.yml?branch=main)](https://github.com/oscars-couch/Jellyfin.Plugin.RetroStretch/actions)
+[![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/oscars-couch/Jellyfin.Plugin.RetroStretch)](https://github.com/oscars-couch/Jellyfin.Plugin.RetroStretch/releases)
+
 A Jellyfin plugin that pre-stretches 4:3 sources to 16:9 at transcode time, so
 HDMI-to-RCA converter setups feeding a CRT TV render the original 4:3 geometry
 correctly instead of a pillared / squished image.
@@ -51,14 +55,11 @@ corrupting the graph.
 
 ## Install
 
-1. Build (.NET 9):
+### From a release zip
 
-   ```sh
-   dotnet build -c Release
-   ```
-
-2. Drop the contents of `bin/Release/net9.0/` plus `meta.json` into a
-   versioned folder under Jellyfin's plugin directory:
+1. Download `Jellyfin.Plugin.RetroStretch-vX.Y.Z.Z.zip` from the
+   [releases page](https://github.com/oscars-couch/Jellyfin.Plugin.RetroStretch/releases).
+2. Extract into a versioned folder under Jellyfin's plugin directory:
 
    ```text
    /var/lib/jellyfin/plugins/RetroStretch_1.0.0.0/
@@ -67,6 +68,17 @@ corrupting the graph.
    ```
 
 3. Restart Jellyfin (`sudo systemctl restart jellyfin` on Debian-based setups).
+
+### Build & install from source
+
+Requires the .NET 9 SDK.
+
+```sh
+dotnet publish --configuration Release --output bin
+```
+
+Then copy `bin/Jellyfin.Plugin.RetroStretch.dll` and `meta.json` into the
+versioned plugin folder above and restart Jellyfin.
 
 ## Configure
 

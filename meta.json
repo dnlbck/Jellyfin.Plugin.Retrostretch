@@ -5,7 +5,7 @@
   "guid": "b8e3f2c1-4d5a-4f3a-8d2e-7a9b1c3d5e8f",
   "name": "Retro Stretch",
   "overview": "Stretches 4:3 sources to 16:9 at transcode time so an HDMI-to-RCA converter feeding a CRT renders correct 4:3 geometry.",
-  "owner": "netmonservices",
+  "owner": "Oscar's Couch",
   "targetAbi": "10.11.0.0",
   "version": "1.0.0.0",
   "status": "Active",

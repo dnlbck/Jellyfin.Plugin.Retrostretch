@@ -279,14 +279,25 @@
         });
     }
 
-    document.addEventListener('DOMContentLoaded', function () {
-        loadRetroConfig().then(refreshSessions);
-        var refreshBtn = document.getElementById('retroRefreshSessions');
-        if (refreshBtn) refreshBtn.addEventListener('click', refreshSessions);
-        // Re-render the matched-check whenever the user edits the textbox.
-        var ids = document.getElementById('retroDeviceIdentifiers');
-        if (ids) ids.addEventListener('input', function () { refreshSessions(); });
-    });
+    // Jellyfin injects plugin config pages dynamically — DOMContentLoaded
+    // has already fired by the time this script runs. Wire up directly and
+    // also listen for `viewshow` (the dashboard's per-page lifecycle event)
+    // so re-visiting the page refreshes the sessions list.
+    function bootstrap() {
+        loadRetroConfig().then(refreshSessions).catch(function (err) {
+            console.error('Retro Stretch: bootstrap failed', err);
+        });
+    }
+
+    var refreshBtn = document.getElementById('retroRefreshSessions');
+    if (refreshBtn) refreshBtn.addEventListener('click', refreshSessions);
+    var ids = document.getElementById('retroDeviceIdentifiers');
+    if (ids) ids.addEventListener('input', refreshSessions);
+
+    if (page) {
+        page.addEventListener('viewshow', bootstrap);
+    }
+    bootstrap();
 })();
 </script>
 </div>

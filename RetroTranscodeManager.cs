@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -20,41 +21,33 @@ namespace Jellyfin.Plugin.RetroStretch
     /// </summary>
     public sealed class RetroTranscodeManager : ITranscodeManager, IDisposable
     {
-        private readonly ITranscodeManager _inner;
-        private readonly ISessionManager _sessionManager;
-        private readonly ILogger<RetroTranscodeManager> _logger;
-
-        // Hardware scale filter names Jellyfin emits. Order matters: longer
-        // tokens come first so a regex alternation doesn't match prefixes.
-        private static readonly string[] HwScaleNames =
-        {
-            "scale_vaapi",
-            "scale_qsv",
-            "vpp_qsv",
-            "scale_cuda",
-            "scale_opencl",
-            "scale_vt",
-            "scale_npp",
-            "scale_rkrga"
-        };
-
         // Matches "scale_xxx=..." up to the next comma, quote, whitespace, or
-        // filter-graph delimiter (; [ ]).
-        // Group 1 = filter name, Group 2 = body (after the '=').
-        private static readonly Regex HwScaleRegex = new Regex(
+        // filter-graph delimiter (; [ ]). Group 1 = filter name, group 2 = body.
+        private static readonly Regex HwScaleRegex = new(
             @"(?<![A-Za-z_])(scale_vaapi|scale_qsv|vpp_qsv|scale_cuda|scale_opencl|scale_vt|scale_npp|scale_rkrga)=([^,""\s;\[\]]*)",
             RegexOptions.Compiled);
 
         // Matches a SW "scale=..." step. Excludes the same graph delimiters so
         // the body can't accidentally absorb the rest of a filter_complex.
-        private static readonly Regex SwScaleRegex = new Regex(
+        private static readonly Regex SwScaleRegex = new(
             @"(?<![A-Za-z_])scale=([^,""\s;\[\]]+)",
             RegexOptions.Compiled);
 
         // Matches an existing "-aspect <ratio>" flag we may need to overwrite.
-        private static readonly Regex AspectRegex = new Regex(
+        private static readonly Regex AspectRegex = new(
             @"-aspect\s+\S+",
             RegexOptions.Compiled);
+
+        // Matches `w=NNN` and `h=NNN` tokens inside a HW scaler body.
+        private static readonly Regex HwWidthRegex = new(
+            @"(?<![A-Za-z_])w=\d+", RegexOptions.Compiled);
+
+        private static readonly Regex HwHeightRegex = new(
+            @"(?<![A-Za-z_])h=\d+", RegexOptions.Compiled);
+
+        private readonly ITranscodeManager _inner;
+        private readonly ISessionManager _sessionManager;
+        private readonly ILogger<RetroTranscodeManager> _logger;
 
         public RetroTranscodeManager(
             ITranscodeManager inner,
@@ -66,6 +59,7 @@ namespace Jellyfin.Plugin.RetroStretch
             _logger = logger;
         }
 
+        /// <inheritdoc />
         public Task<TranscodingJob> StartFfMpeg(
             StreamState state,
             string outputPath,
@@ -73,7 +67,7 @@ namespace Jellyfin.Plugin.RetroStretch
             Guid userId,
             TranscodingJobType transcodingJobType,
             CancellationTokenSource cancellationTokenSource,
-            string workingDirectory = null)
+            string? workingDirectory = null)
         {
             string rewritten = commandLineArguments;
             try
@@ -90,7 +84,7 @@ namespace Jellyfin.Plugin.RetroStretch
                 state, outputPath, rewritten, userId, transcodingJobType, cancellationTokenSource, workingDirectory);
         }
 
-        private string MaybeRewrite(StreamState state, string args)
+        private string? MaybeRewrite(StreamState state, string args)
         {
             var config = Plugin.Instance?.Configuration;
             if (config == null || !config.Enabled || state == null || !state.IsOutputVideo)
@@ -98,13 +92,12 @@ namespace Jellyfin.Plugin.RetroStretch
                 return null;
             }
 
-            string deviceId = state.Request?.DeviceId;
+            string? deviceId = state.Request?.DeviceId;
             if (string.IsNullOrEmpty(deviceId))
             {
                 return null;
             }
 
-            // Resolve the live session so we can substring-match DeviceName/Client.
             var session = _sessionManager.Sessions
                 .FirstOrDefault(s => string.Equals(s?.DeviceId, deviceId, StringComparison.Ordinal));
             if (session == null)
@@ -118,10 +111,10 @@ namespace Jellyfin.Plugin.RetroStretch
                 return null;
             }
 
-            // Resolve source DAR: prefer the AspectRatio metadata ("4:3" /
-            // "16:9") because anamorphic NTSC DVD rips are 720x480 (pixel
-            // ratio 1.5) but display as 4:3. Fall back to pixel dimensions
-            // only when no DAR is recorded.
+            // Resolve source DAR. Prefer the AspectRatio metadata string ("4:3" /
+            // "16:9") because anamorphic NTSC DVD rips are 720x480 (pixel ratio
+            // 1.5) but display as 4:3. Fall back to pixel dimensions only when
+            // no DAR is recorded.
             double? srcAspect = TryParseAspect(state.VideoStream?.AspectRatio);
             if (srcAspect == null)
             {
@@ -151,6 +144,7 @@ namespace Jellyfin.Plugin.RetroStretch
             {
                 targetW = 1920;
             }
+
             if (!int.TryParse(config.TargetHeight, out int targetH) || targetH <= 0)
             {
                 targetH = 1080;
@@ -158,7 +152,7 @@ namespace Jellyfin.Plugin.RetroStretch
 
             // Filter-graph (subtitle burn-in, overlays, etc.) is too risky to
             // rewrite blindly — bail out and let it play unstretched.
-            if (args.IndexOf("-filter_complex", StringComparison.Ordinal) >= 0)
+            if (args.Contains("-filter_complex", StringComparison.Ordinal))
             {
                 _logger.LogInformation(
                     "Retro Stretch: -filter_complex chain detected for '{Device}'; "
@@ -167,7 +161,7 @@ namespace Jellyfin.Plugin.RetroStretch
                 return null;
             }
 
-            string rewritten = TryRewriteScale(args, targetW, targetH, out string filterKind);
+            string? rewritten = TryRewriteScale(args, targetW, targetH, out string? filterKind);
             if (rewritten == null)
             {
                 _logger.LogInformation(
@@ -184,7 +178,7 @@ namespace Jellyfin.Plugin.RetroStretch
             rewritten = EnsureOutputAspect(rewritten, targetW, targetH);
 
             _logger.LogInformation(
-                "Retro Stretch: stretched 4:3 → {W}x{H} via {Kind} filter (-aspect set) for '{Device}' ({Path})",
+                "Retro Stretch: stretched 4:3 -> {W}x{H} via {Kind} filter (-aspect set) for '{Device}' ({Path})",
                 targetW, targetH, filterKind, session.DeviceName, state.MediaPath);
             return rewritten;
         }
@@ -197,16 +191,17 @@ namespace Jellyfin.Plugin.RetroStretch
         /// </summary>
         private static string EnsureOutputAspect(string args, int targetW, int targetH)
         {
-            string flag = $"-aspect {targetW}:{targetH}";
+            string flag = string.Create(CultureInfo.InvariantCulture, $"-aspect {targetW}:{targetH}");
 
             var existing = AspectRegex.Match(args);
             if (existing.Success)
             {
-                return args.Substring(0, existing.Index) + flag + args.Substring(existing.Index + existing.Length);
+                return string.Concat(
+                    args.AsSpan(0, existing.Index),
+                    flag,
+                    args.AsSpan(existing.Index + existing.Length));
             }
 
-            // Insert right after the closing quote of -vf "..." (which we just
-            // rewrote, so it's reliably present).
             int vfIdx = args.IndexOf("-vf \"", StringComparison.Ordinal);
             if (vfIdx < 0)
             {
@@ -221,7 +216,10 @@ namespace Jellyfin.Plugin.RetroStretch
                 return args + " " + flag;
             }
 
-            return args.Substring(0, endQuote + 1) + " " + flag + args.Substring(endQuote + 1);
+            return string.Concat(
+                args.AsSpan(0, endQuote + 1),
+                " " + flag,
+                args.AsSpan(endQuote + 1));
         }
 
         /// <summary>
@@ -231,13 +229,10 @@ namespace Jellyfin.Plugin.RetroStretch
         /// <c>scale=...</c> body replaced with a forced-aspect equivalent.
         /// Returns null if no matching step is found.
         /// </summary>
-        private static string TryRewriteScale(string args, int targetW, int targetH, out string kind)
+        private static string? TryRewriteScale(string args, int targetW, int targetH, out string? kind)
         {
             kind = null;
 
-            // Try HW scaler first — these chains usually keep frames on the GPU
-            // through to the encoder, so a SW <c>scale=</c> insertion would
-            // force a costly hwdownload.
             var hwMatch = HwScaleRegex.Match(args);
             if (hwMatch.Success)
             {
@@ -245,15 +240,23 @@ namespace Jellyfin.Plugin.RetroStretch
                 string body = hwMatch.Groups[2].Value;
                 string rewrittenBody = RewriteHwBody(body, targetW, targetH);
                 string newStep = hwMatch.Groups[1].Value + "=" + rewrittenBody;
-                return args.Substring(0, hwMatch.Index) + newStep + args.Substring(hwMatch.Index + hwMatch.Length);
+                return string.Concat(
+                    args.AsSpan(0, hwMatch.Index),
+                    newStep,
+                    args.AsSpan(hwMatch.Index + hwMatch.Length));
             }
 
             var swMatch = SwScaleRegex.Match(args);
             if (swMatch.Success)
             {
                 kind = "scale";
-                string newStep = $"scale={targetW}:{targetH}:force_original_aspect_ratio=disable";
-                return args.Substring(0, swMatch.Index) + newStep + args.Substring(swMatch.Index + swMatch.Length);
+                string newStep = string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"scale={targetW}:{targetH}:force_original_aspect_ratio=disable");
+                return string.Concat(
+                    args.AsSpan(0, swMatch.Index),
+                    newStep,
+                    args.AsSpan(swMatch.Index + swMatch.Length));
             }
 
             return null;
@@ -269,52 +272,55 @@ namespace Jellyfin.Plugin.RetroStretch
             // any non-w/h key=value tokens untouched.
             if (string.IsNullOrEmpty(body))
             {
-                return $"w={targetW}:h={targetH}";
+                return string.Create(CultureInfo.InvariantCulture, $"w={targetW}:h={targetH}");
             }
 
-            bool hasW = Regex.IsMatch(body, @"(?<![A-Za-z_])w=\d+");
-            bool hasH = Regex.IsMatch(body, @"(?<![A-Za-z_])h=\d+");
+            bool hasW = HwWidthRegex.IsMatch(body);
+            bool hasH = HwHeightRegex.IsMatch(body);
 
             if (hasW)
             {
-                body = Regex.Replace(body, @"(?<![A-Za-z_])w=\d+", "w=" + targetW);
+                body = HwWidthRegex.Replace(body, "w=" + targetW.ToString(CultureInfo.InvariantCulture));
             }
+
             if (hasH)
             {
-                body = Regex.Replace(body, @"(?<![A-Za-z_])h=\d+", "h=" + targetH);
+                body = HwHeightRegex.Replace(body, "h=" + targetH.ToString(CultureInfo.InvariantCulture));
             }
+
             if (!hasW || !hasH)
             {
-                string wh = (hasW ? string.Empty : "w=" + targetW)
+                string wh = (hasW ? string.Empty : "w=" + targetW.ToString(CultureInfo.InvariantCulture))
                     + ((!hasW && !hasH) ? ":" : string.Empty)
-                    + (hasH ? string.Empty : "h=" + targetH);
+                    + (hasH ? string.Empty : "h=" + targetH.ToString(CultureInfo.InvariantCulture));
                 body = string.IsNullOrEmpty(body) ? wh : wh + ":" + body;
             }
+
             return body;
         }
 
-        private static double? TryParseAspect(string aspect)
+        private static double? TryParseAspect(string? aspect)
         {
             if (string.IsNullOrWhiteSpace(aspect))
             {
                 return null;
             }
 
-            int sep = aspect.IndexOf(':');
+            int sep = aspect.IndexOf(':', StringComparison.Ordinal);
             if (sep > 0
-                && double.TryParse(aspect.Substring(0, sep), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double num)
-                && double.TryParse(aspect.Substring(sep + 1), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double den)
+                && double.TryParse(aspect.AsSpan(0, sep), NumberStyles.Any, CultureInfo.InvariantCulture, out double num)
+                && double.TryParse(aspect.AsSpan(sep + 1), NumberStyles.Any, CultureInfo.InvariantCulture, out double den)
                 && den != 0)
             {
                 return num / den;
             }
 
-            return double.TryParse(aspect, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double single)
+            return double.TryParse(aspect, NumberStyles.Any, CultureInfo.InvariantCulture, out double single)
                 ? single
-                : (double?)null;
+                : null;
         }
 
-        private static bool IsCrtDevice(string deviceName, string client, PluginConfiguration config)
+        private static bool IsCrtDevice(string? deviceName, string? client, PluginConfiguration config)
         {
             var identifiers = (config.DeviceIdentifiers ?? string.Empty)
                 .Split(',', StringSplitOptions.RemoveEmptyEntries)
@@ -337,32 +343,41 @@ namespace Jellyfin.Plugin.RetroStretch
 
         // ── Plain forwarding for the rest of ITranscodeManager ─────────────
 
-        public TranscodingJob GetTranscodingJob(string playSessionId)
+        /// <inheritdoc />
+        public TranscodingJob? GetTranscodingJob(string playSessionId)
             => _inner.GetTranscodingJob(playSessionId);
 
-        public TranscodingJob GetTranscodingJob(string path, TranscodingJobType type)
+        /// <inheritdoc />
+        public TranscodingJob? GetTranscodingJob(string path, TranscodingJobType type)
             => _inner.GetTranscodingJob(path, type);
 
+        /// <inheritdoc />
         public void PingTranscodingJob(string playSessionId, bool? isUserPaused)
             => _inner.PingTranscodingJob(playSessionId, isUserPaused);
 
-        public Task KillTranscodingJobs(string deviceId, string playSessionId, Func<string, bool> deleteFiles)
+        /// <inheritdoc />
+        public Task KillTranscodingJobs(string deviceId, string? playSessionId, Func<string, bool> deleteFiles)
             => _inner.KillTranscodingJobs(deviceId, playSessionId, deleteFiles);
 
+        /// <inheritdoc />
         public void ReportTranscodingProgress(
             TranscodingJob job, StreamState state, TimeSpan? transcodingPosition, float? framerate,
             double? percentComplete, long? bytesTranscoded, int? bitRate)
             => _inner.ReportTranscodingProgress(job, state, transcodingPosition, framerate, percentComplete, bytesTranscoded, bitRate);
 
-        public TranscodingJob OnTranscodeBeginRequest(string path, TranscodingJobType type)
+        /// <inheritdoc />
+        public TranscodingJob? OnTranscodeBeginRequest(string path, TranscodingJobType type)
             => _inner.OnTranscodeBeginRequest(path, type);
 
+        /// <inheritdoc />
         public void OnTranscodeEndRequest(TranscodingJob job)
             => _inner.OnTranscodeEndRequest(job);
 
+        /// <inheritdoc />
         public ValueTask<IDisposable> LockAsync(string outputPath, CancellationToken cancellationToken)
             => _inner.LockAsync(outputPath, cancellationToken);
 
+        /// <inheritdoc />
         public void Dispose()
         {
             (_inner as IDisposable)?.Dispose();

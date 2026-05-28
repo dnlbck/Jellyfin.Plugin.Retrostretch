@@ -70,7 +70,7 @@ namespace Jellyfin.Plugin.RetroStretch
                 return;
             }
 
-            string deviceId = context.HttpContext.User?.FindFirst(DeviceIdClaim)?.Value;
+            string? deviceId = context.HttpContext.User?.FindFirst(DeviceIdClaim)?.Value;
             if (string.IsNullOrEmpty(deviceId))
             {
                 return;
@@ -84,11 +84,19 @@ namespace Jellyfin.Plugin.RetroStretch
             }
 
             // Boxed (bool?)false beats the controller's `??= …` defaulting to
-            // true; if the action's parameter type isn't bool? we'd no-op
-            // silently (MVC won't unbox a mismatched type — preferable to a
-            // crash in the request path).
+            // true. We have to disable all three orthogonal "skip re-encode"
+            // paths to actually force a video re-encode:
+            //   - enableDirectPlay   : send raw file as-is
+            //   - enableDirectStream : repackage container (remux), no re-encode
+            //   - allowVideoStreamCopy : inside a "transcode" job, still
+            //                            stream-copy the video and only
+            //                            re-encode audio
+            // Without the third, Jellyfin can decide the device's profile
+            // accepts the source codec and emit -codec:v copy with no -vf
+            // chain — so we have nothing to rewrite.
             OverrideArg(context, "enableDirectPlay", false);
             OverrideArg(context, "enableDirectStream", false);
+            OverrideArg(context, "allowVideoStreamCopy", false);
 
             _logger.LogInformation(
                 "Retro Stretch: forced transcode for device '{Device}' (client='{Client}') on PlaybackInfo",
@@ -101,7 +109,7 @@ namespace Jellyfin.Plugin.RetroStretch
             context.ActionArguments[name] = (bool?)value;
         }
 
-        private static bool IsCrtDevice(string deviceName, string client, PluginConfiguration config)
+        private static bool IsCrtDevice(string? deviceName, string? client, PluginConfiguration config)
         {
             var identifiers = (config.DeviceIdentifiers ?? string.Empty)
                 .Split(',', StringSplitOptions.RemoveEmptyEntries)

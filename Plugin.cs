@@ -23,7 +23,7 @@ namespace Jellyfin.Plugin.RetroStretch
             Instance = this;
         }
 
-        public static Plugin Instance { get; private set; }
+        public static Plugin? Instance { get; private set; }
 
         /// <inheritdoc />
         public override string Name => "Retro Stretch";
@@ -42,9 +42,8 @@ namespace Jellyfin.Plugin.RetroStretch
             {
                 new PluginPageInfo
                 {
-                    Name = "retrostretch",
-                    EmbeddedResourcePath = GetType().Namespace + ".Config.retrostretch.html",
-                    DisplayName = "Retro Stretch Settings"
+                    Name = Name,
+                    EmbeddedResourcePath = GetType().Namespace + ".Configuration.configPage.html"
                 }
             };
         }

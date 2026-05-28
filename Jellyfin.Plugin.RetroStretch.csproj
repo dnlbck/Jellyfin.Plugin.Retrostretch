@@ -2,22 +2,26 @@
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
-    <Version>1.0.0.0</Version>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <RootNamespace>Jellyfin.Plugin.RetroStretch</RootNamespace>
-    <Nullable>disable</Nullable>
-    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Jellyfin.Controller" Version="10.11.10" />
-    <PackageReference Include="Jellyfin.Model" Version="10.11.10" />
+    <!-- ExcludeAssets=runtime prevents Jellyfin's own assemblies from being
+         copied into the plugin output, which would clash with the host's
+         loaded assemblies at runtime. -->
+    <PackageReference Include="Jellyfin.Controller" Version="10.11.10">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+    <PackageReference Include="Jellyfin.Model" Version="10.11.10">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Config\retrostretch.html" />
+    <EmbeddedResource Include="Configuration\configPage.html" />
     <None Include="meta.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

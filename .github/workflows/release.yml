@@ -1,0 +1,140 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g. v1.0.0.0). If omitted, reads build.yaml.'
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            ver="${{ inputs.version }}"
+          else
+            ver="${GITHUB_REF_NAME}"
+          fi
+          # Strip leading 'v' if present.
+          ver="${ver#v}"
+          echo "version=${ver}" >> "$GITHUB_OUTPUT"
+          echo "Releasing version ${ver}"
+
+      - name: Build
+        run: dotnet publish --configuration Release --output ./publish
+
+      - name: Stage release artifacts
+        run: |
+          set -eu
+          mkdir -p ./release
+          cp ./publish/Jellyfin.Plugin.RetroStretch.dll ./release/
+          cp ./meta.json ./release/
+          ls -la ./release/
+
+      - name: Create zip
+        id: zip
+        run: |
+          set -eu
+          ver="${{ steps.version.outputs.version }}"
+          name="Jellyfin.Plugin.RetroStretch-v${ver}.zip"
+          (cd ./release && zip -j "../${name}" .)
+          md5=$(md5sum "${name}" | awk '{print $1}')
+          sha256=$(sha256sum "${name}" | awk '{print $1}')
+          echo "name=${name}"   >> "$GITHUB_OUTPUT"
+          echo "md5=${md5}"     >> "$GITHUB_OUTPUT"
+          echo "sha256=${sha256}" >> "$GITHUB_OUTPUT"
+          echo "::notice::Built ${name}  md5=${md5}  sha256=${sha256}"
+
+      - name: Prepend release entry to manifest.json
+        env:
+          REPO: ${{ github.repository }}
+          VER: ${{ steps.version.outputs.version }}
+          MD5: ${{ steps.zip.outputs.md5 }}
+          ZIP: ${{ steps.zip.outputs.name }}
+        run: |
+          python3 <<'PY'
+          import json, os, datetime, pathlib
+          repo  = os.environ["REPO"]
+          ver   = os.environ["VER"]
+          md5   = os.environ["MD5"]
+          zname = os.environ["ZIP"]
+
+          # Read targetAbi from build.yaml.
+          target_abi = "10.11.0.0"
+          for line in pathlib.Path("build.yaml").read_text().splitlines():
+              if line.startswith("targetAbi:"):
+                  target_abi = line.split('"')[1]
+                  break
+
+          entry = {
+              "version":   ver,
+              "changelog": f"See https://github.com/{repo}/releases/tag/v{ver}",
+              "targetAbi": target_abi,
+              "sourceUrl": f"https://github.com/{repo}/releases/download/v{ver}/{zname}",
+              "checksum":  md5,
+              "timestamp": datetime.datetime.now(datetime.timezone.utc)
+                              .strftime("%Y-%m-%dT%H:%M:%SZ"),
+          }
+
+          p = pathlib.Path("manifest.json")
+          data = json.loads(p.read_text())
+          block = data[0]
+          versions = [v for v in block.get("versions", []) if v.get("version") != ver]
+          versions.insert(0, entry)
+          block["versions"] = versions
+          p.write_text(json.dumps(data, indent=2) + "\n")
+          PY
+
+      - name: Commit manifest.json update
+        run: |
+          set -eu
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet manifest.json; then
+            echo "manifest.json unchanged."
+            exit 0
+          fi
+          git add manifest.json
+          git commit -m "release: update manifest.json for v${{ steps.version.outputs.version }}"
+          git push origin HEAD:main
+
+      - name: Attach zip to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.zip.outputs.name }}
+          body: |
+            ## Install
+
+            Drop the contents of this zip into
+            `/var/lib/jellyfin/plugins/RetroStretch_${{ steps.version.outputs.version }}/`
+            and restart Jellyfin.
+
+            ## Checksums
+
+            ```
+            md5    ${{ steps.zip.outputs.md5 }}
+            sha256 ${{ steps.zip.outputs.sha256 }}
+            ```
+
+            ## Add to a Jellyfin plugin repo
+
+            Add this URL as a plugin source in Jellyfin:
+
+            `https://raw.githubusercontent.com/${{ github.repository }}/main/manifest.json`
