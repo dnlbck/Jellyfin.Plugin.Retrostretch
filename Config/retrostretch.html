@@ -33,6 +33,20 @@
             </div>
         </div>
 
+        <div class="inputContainer" style="margin-bottom: 12px;">
+            <label class="inputLabel inputLabelUnfocused" for="retroForceTranscode" style="margin-right: 8px;">
+                Force transcode on matched devices
+            </label>
+            <input id="retroForceTranscode" type="checkbox" is="emby-checkbox" />
+            <div class="fieldDescription" style="color: #888; font-size: 0.85em;">
+                Override Jellyfin's playback negotiation to disable direct play
+                and direct stream / remux for any session matching the
+                identifiers below. Required to make the stretch fire reliably —
+                without it the client may direct-play the source and bypass
+                this plugin entirely.
+            </div>
+        </div>
+
         <div class="inputContainer" style="margin-bottom: 6px;">
             <label class="inputLabel inputLabelUnfocused" for="retroDeviceIdentifiers">
                 Target device identifiers (comma-separated substrings)
@@ -126,6 +140,8 @@
         return ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
             retroConfig = c;
             document.getElementById('retroEnabled').checked = !!c.Enabled;
+            document.getElementById('retroForceTranscode').checked =
+                c.ForceTranscodeForMatchedDevices !== false;
             document.getElementById('retroDeviceIdentifiers').value =
                 c.DeviceIdentifiers || '';
             document.getElementById('retroTargetWidth').value =
@@ -138,6 +154,8 @@
     window.saveRetroConfig = function () {
         retroConfig.Enabled =
             document.getElementById('retroEnabled').checked;
+        retroConfig.ForceTranscodeForMatchedDevices =
+            document.getElementById('retroForceTranscode').checked;
         retroConfig.DeviceIdentifiers =
             document.getElementById('retroDeviceIdentifiers').value;
         retroConfig.TargetWidth =

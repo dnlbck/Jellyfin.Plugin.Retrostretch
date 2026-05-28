@@ -1,0 +1,35 @@
+# Build output
+bin/
+obj/
+out/
+artifacts/
+
+# IDE / editor cruft
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userprefs
+*.swp
+*.swo
+*~
+
+# OS noise
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+
+# Local secrets / ephemera (paranoia — none of these are tracked today, but
+# anyone running deploy scripts in-tree shouldn't accidentally commit them).
+*.local.json
+*.local
+secrets.json
+.env
+.env.*
+!.env.example
