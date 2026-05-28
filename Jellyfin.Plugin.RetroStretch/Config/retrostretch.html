@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Retro Stretch</title>
+</head>
+<body>
+<div id="retroStretchConfig" data-role="page" class="page type-interior pluginConfigurationPage"
+     data-require="emby-input,emby-button,emby-checkbox">
+
+    <div data-role="content">
+    <div class="content-primary">
+
+        <div class="sectionTitle">
+            <h2>Retro Stretch</h2>
+            <p style="color: #888; max-width: 720px;">
+                Pre-stretches 4:3 sources to fill a 16:9 frame at transcode
+                time, so an HDMI-to-RCA converter feeding a CRT TV renders
+                correct 4:3 geometry instead of pillared / squished output.
+                Only kicks in when the requesting device matches one of the
+                identifiers below AND Jellyfin is actively re-encoding video
+                (not direct-play / video-copy).
+            </p>
+        </div>
+
+        <div class="inputContainer" style="margin-top: 18px; margin-bottom: 12px;">
+            <label class="inputLabel inputLabelUnfocused" for="retroEnabled" style="margin-right: 8px;">
+                Enabled
+            </label>
+            <input id="retroEnabled" type="checkbox" is="emby-checkbox" />
+            <div class="fieldDescription" style="color: #888; font-size: 0.85em;">
+                Master toggle. Turning off leaves Jellyfin's transcodes untouched.
+            </div>
+        </div>
+
+        <div class="inputContainer" style="margin-bottom: 6px;">
+            <label class="inputLabel inputLabelUnfocused" for="retroDeviceIdentifiers">
+                Target device identifiers (comma-separated substrings)
+            </label>
+            <input id="retroDeviceIdentifiers" type="text" is="emby-input"
+                   style="width: 100%; max-width: 480px;" />
+            <div class="fieldDescription" style="color: #888; font-size: 0.85em;">
+                Case-insensitive substring match against the session's
+                DeviceName or Client. Example: <code>Roku</code> matches both
+                <code>Roku Streambar (9102X)</code> and the
+                <code>Jellyfin Roku</code> app.
+            </div>
+        </div>
+
+        <!-- ── Session picker ─────────────────────────────────────────── -->
+        <div style="margin-top: 18px; margin-bottom: 24px; max-width: 720px;">
+            <div style="display: flex; align-items: center; justify-content: space-between;
+                        margin-bottom: 6px;">
+                <strong>Connected sessions</strong>
+                <button is="emby-button" type="button" class="raised mini"
+                        id="retroRefreshSessions" style="margin: 0;">
+                    Refresh
+                </button>
+            </div>
+            <div id="retroSessionList"
+                 style="border: 1px solid #444; border-radius: 4px;
+                        background: rgba(255,255,255,0.03); padding: 8px;
+                        min-height: 56px;">
+                <div style="color: #888; font-style: italic;">Loading…</div>
+            </div>
+            <div class="fieldDescription" style="color: #888; font-size: 0.85em; margin-top: 6px;">
+                Click <strong>Add</strong> next to the device you want to
+                stretch for; the device name is appended above. Sessions
+                update live — refresh after starting playback on the target.
+            </div>
+        </div>
+
+        <div class="inputContainer" style="margin-bottom: 12px;">
+            <label class="inputLabel inputLabelUnfocused" for="retroTargetWidth">
+                Target width
+            </label>
+            <input id="retroTargetWidth" type="text" is="emby-input"
+                   style="width: 120px;" />
+        </div>
+
+        <div class="inputContainer" style="margin-bottom: 18px;">
+            <label class="inputLabel inputLabelUnfocused" for="retroTargetHeight">
+                Target height
+            </label>
+            <input id="retroTargetHeight" type="text" is="emby-input"
+                   style="width: 120px;" />
+            <div class="fieldDescription" style="color: #888; font-size: 0.85em;">
+                The dimensions Jellyfin's scaler will produce for matching
+                4:3 sources. Leave at 1920 × 1080 unless your client requests
+                something else.
+            </div>
+        </div>
+
+        <button is="emby-button" type="button" class="raised button-submit"
+                onclick="saveRetroConfig()">
+            <span>Save</span>
+        </button>
+        <span id="retroStatus" style="margin-left: 12px; color: #5cb85c;"></span>
+
+        <div style="margin-top: 24px; padding: 12px;
+                    background: rgba(255,255,255,0.03);
+                    border-left: 3px solid #5cb85c; max-width: 720px;
+                    font-size: 0.88em; color: #ccc;">
+            <strong>Won't fire when:</strong>
+            <ul style="margin: 6px 0 0 18px; padding: 0;">
+                <li>The client direct-plays / video-copies the source
+                    (Jellyfin emits no scale filter — nothing to rewrite).
+                    Lower the player's quality / bitrate to force a re-encode.</li>
+                <li>The transcode uses <code>-filter_complex</code> (e.g.
+                    subtitle burn-in or overlays). We pass through to avoid
+                    corrupting the graph.</li>
+                <li>The source isn't 4:3 (DAR in <code>[1.30, 1.36]</code>).</li>
+            </ul>
+        </div>
+
+    </div>
+    </div>
+
+<script>
+(function () {
+    var PLUGIN_ID = "Jellyfin.Plugin.RetroStretch";
+    var page = document.getElementById('retroStretchConfig');
+    var retroConfig = {};
+
+    function loadRetroConfig() {
+        return ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
+            retroConfig = c;
+            document.getElementById('retroEnabled').checked = !!c.Enabled;
+            document.getElementById('retroDeviceIdentifiers').value =
+                c.DeviceIdentifiers || '';
+            document.getElementById('retroTargetWidth').value =
+                c.TargetWidth || '1920';
+            document.getElementById('retroTargetHeight').value =
+                c.TargetHeight || '1080';
+        });
+    }
+
+    window.saveRetroConfig = function () {
+        retroConfig.Enabled =
+            document.getElementById('retroEnabled').checked;
+        retroConfig.DeviceIdentifiers =
+            document.getElementById('retroDeviceIdentifiers').value;
+        retroConfig.TargetWidth =
+            document.getElementById('retroTargetWidth').value;
+        retroConfig.TargetHeight =
+            document.getElementById('retroTargetHeight').value;
+        // Preserve any fields we don't render (forward compat).
+
+        ApiClient.updatePluginConfiguration(PLUGIN_ID, retroConfig)
+            .then(function () {
+                var s = document.getElementById('retroStatus');
+                s.textContent = 'Saved.';
+                setTimeout(function () { s.textContent = ''; }, 2500);
+            })
+            .catch(function (err) {
+                document.getElementById('retroStatus').textContent =
+                    'Save failed: ' + err;
+            });
+    };
+
+    function escapeHtml(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function identifierAlreadyMatches(deviceName, client, csv) {
+        if (!csv) return false;
+        var parts = csv.split(',').map(function (s) { return s.trim().toLowerCase(); })
+            .filter(Boolean);
+        var dn = (deviceName || '').toLowerCase();
+        var cl = (client || '').toLowerCase();
+        for (var i = 0; i < parts.length; i++) {
+            if (parts[i] && (dn.indexOf(parts[i]) >= 0 || cl.indexOf(parts[i]) >= 0)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function appendIdentifier(name) {
+        var box = document.getElementById('retroDeviceIdentifiers');
+        var current = (box.value || '').trim();
+        var parts = current.split(',').map(function (s) { return s.trim(); })
+            .filter(Boolean);
+        if (parts.indexOf(name) >= 0) return;
+        parts.push(name);
+        box.value = parts.join(', ');
+    }
+
+    function removeIdentifier(name) {
+        var box = document.getElementById('retroDeviceIdentifiers');
+        var current = (box.value || '').trim();
+        var parts = current.split(',').map(function (s) { return s.trim(); })
+            .filter(function (s) { return s && s !== name; });
+        box.value = parts.join(', ');
+    }
+
+    function renderSessions(sessions) {
+        var host = document.getElementById('retroSessionList');
+        if (!sessions || !sessions.length) {
+            host.innerHTML = '<div style="color: #888; font-style: italic;">'
+                + 'No active sessions.</div>';
+            return;
+        }
+        var csv = document.getElementById('retroDeviceIdentifiers').value;
+        var rows = sessions.map(function (s) {
+            var matched = identifierAlreadyMatches(s.DeviceName, s.Client, csv);
+            var label = escapeHtml(s.DeviceName || '(no device name)');
+            var client = escapeHtml(s.Client || '');
+            var version = escapeHtml(s.ApplicationVersion || '');
+            var addBtn;
+            if (matched) {
+                addBtn = '<span style="color:#5cb85c; font-size:0.85em;">Matched ✓</span>';
+            } else {
+                addBtn = '<button is="emby-button" type="button" class="raised mini" '
+                    + 'data-name="' + escapeHtml(s.DeviceName || '') + '">Add</button>';
+            }
+            return ''
+                + '<div style="display:flex; align-items:center; justify-content:space-between; '
+                +              'padding:6px 4px; border-bottom:1px solid #333;">'
+                +   '<div>'
+                +     '<div><strong>' + label + '</strong></div>'
+                +     '<div style="color:#888; font-size:0.85em;">' + client
+                +       (version ? ' &middot; v' + version : '') + '</div>'
+                +   '</div>'
+                +   '<div>' + addBtn + '</div>'
+                + '</div>';
+        });
+        host.innerHTML = rows.join('');
+        // Bind add buttons.
+        Array.from(host.querySelectorAll('button[data-name]')).forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                appendIdentifier(btn.getAttribute('data-name'));
+                refreshSessions();
+            });
+        });
+    }
+
+    function refreshSessions() {
+        var host = document.getElementById('retroSessionList');
+        host.innerHTML = '<div style="color:#888; font-style:italic;">Loading…</div>';
+        ApiClient.getSessions().then(function (sessions) {
+            // Filter to "real" client sessions — exclude background / DLNA
+            // probes and dead sessions with no device name.
+            var active = (sessions || []).filter(function (s) {
+                return s && s.DeviceName && s.Client;
+            });
+            // De-dupe by DeviceName (a device may have multiple sessions).
+            var seen = {};
+            active = active.filter(function (s) {
+                var k = (s.DeviceName || '') + '|' + (s.Client || '');
+                if (seen[k]) return false;
+                seen[k] = true;
+                return true;
+            });
+            renderSessions(active);
+        }).catch(function (err) {
+            host.innerHTML = '<div style="color:#d9534f;">Failed to load sessions: '
+                + escapeHtml(String(err)) + '</div>';
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        loadRetroConfig().then(refreshSessions);
+        var refreshBtn = document.getElementById('retroRefreshSessions');
+        if (refreshBtn) refreshBtn.addEventListener('click', refreshSessions);
+        // Re-render the matched-check whenever the user edits the textbox.
+        var ids = document.getElementById('retroDeviceIdentifiers');
+        if (ids) ids.addEventListener('input', function () { refreshSessions(); });
+    });
+})();
+</script>
+</div>
+</body>
+</html>
