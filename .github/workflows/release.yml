@@ -54,7 +54,7 @@ jobs:
           set -eu
           ver="${{ steps.version.outputs.version }}"
           name="Jellyfin.Plugin.RetroStretch-v${ver}.zip"
-          (cd ./release && zip -j "../${name}" .)
+          zip -j "${name}" ./release/*
           md5=$(md5sum "${name}" | awk '{print $1}')
           sha256=$(sha256sum "${name}" | awk '{print $1}')
           echo "name=${name}"   >> "$GITHUB_OUTPUT"
