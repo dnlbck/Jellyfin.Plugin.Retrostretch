@@ -62,7 +62,7 @@ corrupting the graph.
 2. Extract into a versioned folder under Jellyfin's plugin directory:
 
    ```text
-   /var/lib/jellyfin/plugins/RetroStretch_1.0.0.0/
+   /var/lib/jellyfin/plugins/RetroStretch_2.0.0.0/
        Jellyfin.Plugin.RetroStretch.dll
        meta.json
    ```
@@ -71,7 +71,7 @@ corrupting the graph.
 
 ### Build & install from source
 
-Requires the .NET 9 SDK.
+Requires the .NET 10 SDK.
 
 ```sh
 dotnet publish --configuration Release --output bin
@@ -114,9 +114,9 @@ happen):
 
 ## Compatibility
 
-Built and tested against Jellyfin **10.11.10**. The plugin depends on
+Built and tested against Jellyfin **12.0**. The plugin depends on
 `ITranscodeManager` being a single replaceable singleton (it is, as of
-10.11.10) and on Jellyfin's MVC pipeline accepting filter registration via
+12.0) and on Jellyfin's MVC pipeline accepting filter registration via
 `Configure<MvcOptions>` (it does).
 
 If a future Jellyfin release reshuffles `TranscodeManager`'s constructor

@@ -1,9 +1,9 @@
 ---
 name: "Retro Stretch"
 guid: "b8e3f2c1-4d5a-4f3a-8d2e-7a9b1c3d5e8f"
-version: "1.0.0.0"
-targetAbi: "10.11.0.0"
-framework: "net9.0"
+version: "2.0.0.0"
+targetAbi: "12.0.0.0"
+framework: "net10.0"
 overview: "Stretch 4:3 sources to 16:9 for HDMI-to-RCA + CRT setups."
 description: >
   Pre-stretches 4:3 content to fill a 16:9 frame at transcode time, so an
@@ -16,4 +16,4 @@ owner: "Oscar's Couch"
 artifacts:
   - "Jellyfin.Plugin.RetroStretch.dll"
 changelog: |-
-  - Initial release.
+  - Retargeted for Jellyfin 12.0 (.NET 10). No functional changes.

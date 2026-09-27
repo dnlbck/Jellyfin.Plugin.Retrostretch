@@ -3,6 +3,8 @@ bin/
 obj/
 out/
 artifacts/
+publish/
+release/
 
 # IDE / editor cruft
 .vs/
