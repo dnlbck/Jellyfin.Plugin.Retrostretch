@@ -1,8 +1,8 @@
 # Jellyfin.Plugin.RetroStretch
 
-[![Build](https://img.shields.io/github/actions/workflow/status/oscars-couch/Jellyfin.Plugin.RetroStretch/release.yml?branch=main)](https://github.com/oscars-couch/Jellyfin.Plugin.RetroStretch/actions)
+[![Build](https://img.shields.io/github/actions/workflow/status/dnlbck/Jellyfin.Plugin.Retrostretch/build.yml?branch=main)](https://github.com/dnlbck/Jellyfin.Plugin.Retrostretch/actions)
 [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/oscars-couch/Jellyfin.Plugin.RetroStretch)](https://github.com/oscars-couch/Jellyfin.Plugin.RetroStretch/releases)
+[![Release](https://img.shields.io/github/v/release/dnlbck/Jellyfin.Plugin.Retrostretch)](https://github.com/dnlbck/Jellyfin.Plugin.Retrostretch/releases)
 
 A Jellyfin plugin that pre-stretches 4:3 sources to 16:9 at transcode time, so
 HDMI-to-RCA converter setups feeding a CRT TV render the original 4:3 geometry
