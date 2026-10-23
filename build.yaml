@@ -1,7 +1,7 @@
 ---
 name: "Retro Stretch"
 guid: "b8e3f2c1-4d5a-4f3a-8d2e-7a9b1c3d5e8f"
-version: "2.0.1.0"
+version: "2.0.1.1"
 targetAbi: "12.0.0.0"
 framework: "net10.0"
 overview: "Stretch 4:3 sources to 16:9 for HDMI-to-RCA + CRT setups."
@@ -16,7 +16,12 @@ owner: "Oscar's Couch"
 artifacts:
   - "Jellyfin.Plugin.RetroStretch.dll"
 changelog: |-
-  - Fixed the settings page: config load/save called the API with the plugin
+  - Fixed settings page: config load/save called the API with the plugin
     name instead of its GUID, so fields came up blank and Save failed.
   - Removed the "Enabled" master toggle — use the plugin's Activate/Deactivate
     control in Dashboard → Plugins instead.
+  - Fixed release versioning: every release shipped a DLL stamped 2.0.0.0
+    because Directory.Build.props was never updated, so Jellyfin reported
+    the new version as the old one and updates went in circles. The DLL
+    now carries the release version, and CI stamps the tag version into
+    every build.

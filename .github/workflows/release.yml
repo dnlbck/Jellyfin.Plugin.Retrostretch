@@ -39,6 +39,7 @@ jobs:
 
       - name: Build
         run: dotnet publish --configuration Release --output ./publish
+              -p:Version=${{ steps.version.outputs.version }}
 
       - name: Stage release artifacts
         run: |

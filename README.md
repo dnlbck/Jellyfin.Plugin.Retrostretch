@@ -62,7 +62,7 @@ corrupting the graph.
 2. Extract into a versioned folder under Jellyfin's plugin directory:
 
    ```text
-   /var/lib/jellyfin/plugins/RetroStretch_2.0.0.0/
+   /var/lib/jellyfin/plugins/RetroStretch_2.0.1.1/
        Jellyfin.Plugin.RetroStretch.dll
        meta.json
    ```
