@@ -9,11 +9,6 @@ namespace Jellyfin.Plugin.RetroStretch
     public class PluginConfiguration : BasePluginConfiguration
     {
         /// <summary>
-        /// Master toggle for the plugin.
-        /// </summary>
-        public bool Enabled { get; set; } = true;
-
-        /// <summary>
         /// Comma-separated case-insensitive substrings matched against each
         /// session's <c>DeviceName</c> and <c>Client</c>. Any session whose
         /// device or client contains one of these substrings receives the

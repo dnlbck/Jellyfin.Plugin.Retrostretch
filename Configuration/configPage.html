@@ -23,16 +23,6 @@
             </p>
         </div>
 
-        <div class="inputContainer" style="margin-top: 18px; margin-bottom: 12px;">
-            <label class="inputLabel inputLabelUnfocused" for="retroEnabled" style="margin-right: 8px;">
-                Enabled
-            </label>
-            <input id="retroEnabled" type="checkbox" is="emby-checkbox" />
-            <div class="fieldDescription" style="color: #888; font-size: 0.85em;">
-                Master toggle. Turning off leaves Jellyfin's transcodes untouched.
-            </div>
-        </div>
-
         <div class="inputContainer" style="margin-bottom: 12px;">
             <label class="inputLabel inputLabelUnfocused" for="retroForceTranscode" style="margin-right: 8px;">
                 Force transcode on matched devices
@@ -132,48 +122,66 @@
 
 <script>
 (function () {
-    var PLUGIN_ID = "Jellyfin.Plugin.RetroStretch";
+    // Must be the plugin's GUID (see Plugin.cs / build.yaml), NOT its name —
+    // the dashboard routes /Plugins/{pluginId}/Configuration only accept the
+    // GUID, and passing the namespace silently breaks load and save.
+    var PLUGIN_ID = "b8e3f2c1-4d5a-4f3a-8d2e-7a9b1c3d5e8f";
     var page = document.getElementById('retroStretchConfig');
     var retroConfig = {};
+    var configLoaded = false;
 
     function loadRetroConfig() {
         return ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
-            retroConfig = c;
-            document.getElementById('retroEnabled').checked = !!c.Enabled;
+            retroConfig = c || {};
+            configLoaded = true;
             document.getElementById('retroForceTranscode').checked =
-                c.ForceTranscodeForMatchedDevices !== false;
+                retroConfig.ForceTranscodeForMatchedDevices !== false;
             document.getElementById('retroDeviceIdentifiers').value =
-                c.DeviceIdentifiers || '';
+                retroConfig.DeviceIdentifiers || '';
             document.getElementById('retroTargetWidth').value =
-                c.TargetWidth || '1920';
+                retroConfig.TargetWidth || '1920';
             document.getElementById('retroTargetHeight').value =
-                c.TargetHeight || '1080';
+                retroConfig.TargetHeight || '1080';
         });
     }
 
-    window.saveRetroConfig = function () {
-        retroConfig.Enabled =
-            document.getElementById('retroEnabled').checked;
-        retroConfig.ForceTranscodeForMatchedDevices =
-            document.getElementById('retroForceTranscode').checked;
-        retroConfig.DeviceIdentifiers =
-            document.getElementById('retroDeviceIdentifiers').value;
-        retroConfig.TargetWidth =
-            document.getElementById('retroTargetWidth').value;
-        retroConfig.TargetHeight =
-            document.getElementById('retroTargetHeight').value;
-        // Preserve any fields we don't render (forward compat).
+    function errText(err) {
+        if (!err) return 'unknown error';
+        if (err.status) return 'HTTP ' + err.status;
+        return String(err.message || err);
+    }
 
-        ApiClient.updatePluginConfiguration(PLUGIN_ID, retroConfig)
-            .then(function () {
-                var s = document.getElementById('retroStatus');
-                s.textContent = 'Saved.';
-                setTimeout(function () { s.textContent = ''; }, 2500);
-            })
-            .catch(function (err) {
-                document.getElementById('retroStatus').textContent =
-                    'Save failed: ' + err;
-            });
+    window.saveRetroConfig = function () {
+        var status = document.getElementById('retroStatus');
+        status.textContent = 'Saving…';
+
+        // If the initial load never completed, fetch the server config now so
+        // we POST a complete object instead of only the visible fields.
+        var ready = configLoaded
+            ? Promise.resolve(retroConfig)
+            : loadRetroConfig().then(function () { return retroConfig; });
+
+        ready.then(function (cfg) {
+            cfg.ForceTranscodeForMatchedDevices =
+                document.getElementById('retroForceTranscode').checked;
+            cfg.DeviceIdentifiers =
+                document.getElementById('retroDeviceIdentifiers').value;
+            cfg.TargetWidth =
+                document.getElementById('retroTargetWidth').value;
+            cfg.TargetHeight =
+                document.getElementById('retroTargetHeight').value;
+            // Preserve any fields we don't render (forward compat).
+
+            return ApiClient.updatePluginConfiguration(PLUGIN_ID, cfg);
+        })
+        .then(function () {
+            configLoaded = true;
+            status.textContent = 'Saved.';
+            setTimeout(function () { status.textContent = ''; }, 2500);
+        })
+        .catch(function (err) {
+            status.textContent = 'Save failed: ' + errText(err);
+        });
     };
 
     function escapeHtml(s) {

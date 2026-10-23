@@ -59,7 +59,7 @@ namespace Jellyfin.Plugin.RetroStretch
         private void MaybeForceTranscode(ActionExecutingContext context)
         {
             var config = Plugin.Instance?.Configuration;
-            if (config == null || !config.Enabled || !config.ForceTranscodeForMatchedDevices)
+            if (config == null || !config.ForceTranscodeForMatchedDevices)
             {
                 return;
             }

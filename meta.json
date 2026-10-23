@@ -1,13 +1,13 @@
 {
   "category": "General",
-  "changelog": "Retargeted for Jellyfin 12.0 (.NET 10). No functional changes.",
+  "changelog": "Fixed settings page (config load/save used the plugin name instead of its GUID). Removed the redundant Enabled toggle.",
   "description": "Pre-stretch 4:3 content to 16:9 for HDMI-to-RCA converter + CRT TV setups.",
   "guid": "b8e3f2c1-4d5a-4f3a-8d2e-7a9b1c3d5e8f",
   "name": "Retro Stretch",
   "overview": "Stretches 4:3 sources to 16:9 at transcode time so an HDMI-to-RCA converter feeding a CRT renders correct 4:3 geometry.",
   "owner": "Oscar's Couch",
   "targetAbi": "12.0.0.0",
-  "version": "2.0.0.0",
+  "version": "2.0.1.0",
   "status": "Active",
   "autoUpdate": false,
   "assemblies": [

@@ -84,7 +84,6 @@ versioned plugin folder above and restart Jellyfin.
 
 Dashboard → Plugins → Retro Stretch:
 
-- **Enabled** — master toggle.
 - **Force transcode on matched devices** — disable direct play / direct
   stream for matched sessions. Default on; turn off only if you want to
   selectively opt out per playback.

@@ -87,7 +87,7 @@ namespace Jellyfin.Plugin.RetroStretch
         private string? MaybeRewrite(StreamState state, string args)
         {
             var config = Plugin.Instance?.Configuration;
-            if (config == null || !config.Enabled || state == null || !state.IsOutputVideo)
+            if (config == null || state == null || !state.IsOutputVideo)
             {
                 return null;
             }
